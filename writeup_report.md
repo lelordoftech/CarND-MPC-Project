@@ -109,8 +109,8 @@ When `f(x) = coeffs[0] + coeffs[1] * x + coeffs[2] * x ^ 2 + coeffs[3] * x0 ^ 3`
 
 ```cpp
 for (t = 0; t < N; t++) {
-  fg[0] += 2000 * CppAD::pow(vars[cte_start + t] - ref_cte, 2);
-  fg[0] += 2000 * CppAD::pow(vars[epsi_start + t] - ref_epsi, 2);
+  fg[0] += CppAD::pow(vars[cte_start + t] - ref_cte, 2);
+  fg[0] += CppAD::pow(vars[epsi_start + t] - ref_epsi, 2);
   fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
 }
 ```
@@ -119,8 +119,8 @@ for (t = 0; t < N; t++) {
 
 ```cpp
 for (t = 0; t < N - 1; t++) {
-  fg[0] += 5 * CppAD::pow(vars[delta_start + t], 2);
-  fg[0] += 5 * CppAD::pow(vars[a_start + t], 2);
+  fg[0] += CppAD::pow(vars[delta_start + t], 2);
+  fg[0] += CppAD::pow(vars[a_start + t], 2);
 }
 ```
 
@@ -128,21 +128,37 @@ for (t = 0; t < N - 1; t++) {
 
 ```cpp
 for (t = 0; t < N - 2; t++) {
-  fg[0] += 200 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-  fg[0] += 10 * CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+  fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+  fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
 }
 ```
 
 To tuning MPC, I multiply above part by a value > 1. It help the steering angle values to be smooth.
 
-#### 2. Timestep Length and Elapsed Duration (N & dt)
-
-File `MPC.cpp`, line 9-10:
+File `MPC.cpp`, line 47-64:
 
 ```cpp
-size_t N = 10;
-double dt = 0.1;
+    // The part of the cost based on the reference state.
+    for (t = 0; t < N; t++) {
+      fg[0] += 2000 * CppAD::pow(vars[cte_start + t] - ref_cte, 2);
+      fg[0] += 2000 * CppAD::pow(vars[epsi_start + t] - ref_epsi, 2);
+      fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+    }
+
+    // Minimize the use of actuators.
+    for (t = 0; t < N - 1; t++) {
+      fg[0] += 5 * CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 5 * CppAD::pow(vars[a_start + t], 2);
+    }
+
+    // Minimize the value gap between sequential actuations.
+    for (t = 0; t < N - 2; t++) {
+      fg[0] += 200 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += 10 * CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+    }
 ```
+
+#### 2. Timestep Length and Elapsed Duration (N & dt)
 
 I start with sample in the Quizz:
 
@@ -202,6 +218,13 @@ That's awesome, vehicle can keep lane perfectly. The steering does change smooth
 I also try to continue increase duration, so the prediction horizon T is higher. But vehicle run slowly (10mph).
 
 So I choose these final value for my project.
+
+File `MPC.cpp`, line 9-10:
+
+```cpp
+size_t N = 10;
+double dt = 0.1;
+```
 
 #### 3. Polynomial Fitting and MPC Preprocessing
 
