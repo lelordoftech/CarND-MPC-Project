@@ -124,7 +124,6 @@ int main() {
           // and subtracting y.
           double cte = polyeval(coeffs, 0);
           // Due to the sign starting at 0, the orientation error is -f'(x).
-          // derivative of coeffs[0] + coeffs[1] * x + coeffs[1] * x^2 -> coeffs[1] + 2 * coeffs[2] * x
           double epsi = - atan(coeffs[1]);
 
           /*
@@ -146,7 +145,7 @@ int main() {
           double psi_pred = 0 - v*delta/Lf*latency; // compatible to simulator
           double v_pred = v + acceleration*latency;
           double cte_pred = polyeval(coeffs, x_pred) - y_pred;
-          double epsi_pred = - atan(coeffs[1] + 2*coeffs[2]*x_pred + 3*coeffs[3]*x_pred*x_pred);
+          double epsi_pred = 0 - atan(coeffs[1] + 2*coeffs[2]*x_pred + 3*coeffs[3]*x_pred*x_pred);
           state << x_pred, y_pred, psi_pred, v_pred, cte_pred, epsi_pred;
 
           auto vars = mpc.Solve(state, coeffs);
