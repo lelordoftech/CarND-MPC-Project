@@ -12,6 +12,10 @@
 // for convenience
 using json = nlohmann::json;
 
+// Using for display the waypoints/reference line
+const double poly_inc = 2.5;
+const size_t num_points = 25;
+
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
@@ -94,8 +98,9 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          size_t i;
 
-          for (size_t i = 0; i < ptsx.size(); i++)
+          for (i = 0; i < ptsx.size(); i++)
           {
             // translation
             double X = ptsx[i] - px;
@@ -117,11 +122,10 @@ int main() {
 
           // The cross track error is calculated by evaluating at polynomial at x, f(x)
           // and subtracting y.
-          double cte = polyeval(coeffs, 0) - 0;
+          double cte = polyeval(coeffs, 0);
           // Due to the sign starting at 0, the orientation error is -f'(x).
           // derivative of coeffs[0] + coeffs[1] * x + coeffs[1] * x^2 -> coeffs[1] + 2 * coeffs[2] * x
-          double psi_des = atan(coeffs[1]);
-          double epsi = 0 - psi_des;
+          double epsi = - atan(coeffs[1]);
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -132,11 +136,23 @@ int main() {
           Eigen::VectorXd state(6);
           state << 0, 0, 0, v, cte, epsi;
 
+          // predict state in 100ms
+          double delta = j[1]["steering_angle"];
+          double acceleration = j[1]["throttle"];
+          double latency = 0.1;
+
+          double x_pred = 0 + v*cos(0)*latency;
+          double y_pred = 0 + v*sin(0)*latency;
+          double psi_pred = 0 - v*delta/Lf*latency; // compatible to simulator
+          double v_pred = v + acceleration*latency;
+          double cte_pred = polyeval(coeffs, x_pred) - y_pred;
+          double epsi_pred = - atan(coeffs[1] + 2*coeffs[2]*x_pred + 3*coeffs[3]*x_pred*x_pred);
+          state << x_pred, y_pred, psi_pred, v_pred, cte_pred, epsi_pred;
+
           auto vars = mpc.Solve(state, coeffs);
 
-          double Lf = 2.67;
-          double steer_value = vars[0]/(deg2rad(25)* Lf);//j[1]["steeing_angle"];
-          double throttle_value = vars[1];//j[1]["throttle"];
+          double steer_value = vars[0]/(deg2rad(25)* Lf);
+          double throttle_value = vars[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -147,7 +163,7 @@ int main() {
           //Display the MPC predicted trajectory
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
-          for (size_t i = 2; i < vars.size(); i++)
+          for (i = 2; i < vars.size(); i++)
           {
             if (i%2 == 0)
             {
@@ -158,7 +174,6 @@ int main() {
               mpc_y_vals.push_back(vars[i]);
             }
           }
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
           msgJson["mpc_x"] = mpc_x_vals;
@@ -167,15 +182,11 @@ int main() {
           //Display the waypoints/reference line
           vector<double> next_x_vals;
           vector<double> next_y_vals;
-
-          double poly_inc = 2.5;
-          int num_points = 25;
-          for (uint8_t i = 1; i < num_points; i++)
+          for (i = 1; i < num_points; i++)
           {
             next_x_vals.push_back(poly_inc * i);
             next_y_vals.push_back(polyeval(coeffs, poly_inc * i));
           }
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
           msgJson["next_x"] = next_x_vals;
@@ -192,7 +203,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          //this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       }
